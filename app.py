@@ -176,6 +176,20 @@ def predict_csv():
                 'confusion_matrix': {'true_negative': int(tn), 'false_positive': int(fp),
                                       'false_negative': int(fn), 'true_positive': int(tp)}
             }
+        try:
+            account_history_collection.insert_one({
+                'file_name': file.filename,
+                'analyzed_at': datetime.now(timezone.utc),
+                'total_accounts': response['total_accounts'],
+                'predicted_fraud': response['predicted_fraud'],
+                'predicted_not_fraud': response['predicted_not_fraud'],
+                'threshold_used': response['threshold_used'],
+                'threshold_mode': response['threshold_mode'],
+                'accounts': accounts,
+            })
+        except Exception as e:
+                        # Don't let a Mongo write failure break the actual prediction response
+            print(f"Warning: failed to save account history to MongoDB: {e}")
 
         return jsonify(response)
 
@@ -183,7 +197,28 @@ def predict_csv():
         return jsonify({'success': False, 'error': f'Missing or unrecognized field: {e}'}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
+@app.route('/history', methods=['GET'])
+def get_account_history():
+    try:
+        records = list(
+            account_history_collection.find().sort('analyzed_at', -1)
+        )
+        history = []
+        for r in records:
+            history.append({
+                '_id': str(r['_id']),
+                'file_name': r.get('file_name', 'Unknown file'),
+                'analyzed_at': r['analyzed_at'].isoformat() if r.get('analyzed_at') else None,
+                'total_accounts': r.get('total_accounts'),
+                'predicted_fraud': r.get('predicted_fraud'),
+                'predicted_not_fraud': r.get('predicted_not_fraud'),
+                'threshold_used': r.get('threshold_used'),
+                'threshold_mode': r.get('threshold_mode'),
+                'accounts': r.get('accounts', []),
+            })
+        return jsonify({'success': True, 'history': history})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/predict', methods=['POST'])
 def predict():
