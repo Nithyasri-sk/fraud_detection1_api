@@ -6,6 +6,8 @@ import json
 import pandas as pd
 import numpy as np
 import os
+from pymongo import MongoClient
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 
@@ -39,7 +41,9 @@ if _missing_keys:
         f"model_config.json is missing required keys: {_missing_keys}. "
         f"Regenerate it from the training notebook before deploying."
     )
-
+mongo_client = MongoClient(os.environ.get("MONGO_URI"))
+db = mongo_client["fraudshield"]
+account_history_collection = db["account_history"]
 
 def preprocess(df):
     """Apply the exact same preprocessing used during training."""
